@@ -17,7 +17,7 @@ A step-by-step guide on how to install and run the project on a local machine.
 
 Instructions and examples on how to use the project, including code snippets and/or screenshots.
 
-![example HOW TO DOWNLOAD THE DATABASE FROM NCBI](/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/Sapienza_environmetal_biology_Valeria/example_ncbi.png)
+![example HOW TO DOWNLOAD THE DATABASE FROM NCBI](https://github.com/dani-julian/Sapienza_environmetal_biology_Valeria/blob/a854a5d461341f0fb7ff391bf9649295a7792884/example_ncbi.png) 
 
 ## Contributing
 
