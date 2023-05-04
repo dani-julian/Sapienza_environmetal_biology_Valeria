@@ -323,7 +323,8 @@ def convert_color(test):
     return(complete_colors)
 
 def blast(elm):
-    blastn_cline = NcbiblastnCommandline(db=elm[1], query=elm[0], evalue=0.001, out=elm[2] ,outfmt = "6 qseqid sseqid bitscore sscinames pident evalue staxids qlen" )
+    ##there is a file blastn for each read
+    blastn_cline = NcbiblastnCommandline(db=elm[1], query=elm[0], evalue=0.001, out=elm[2] ,outfmt = "6 qseqid sseqid bitscore sscinames pident evalue staxids qlen" ) ##qseqid: Query sequence ID. sseqid: Subject sequence ID. bitscore: Bit score of the alignment. sscinames: Scientific name of the subject organism. pident: Percent identity of the alignment. evalue: Expect value of the alignment. staxids: Taxonomy ID of the subject organism. qlen: Length of the query sequence.
     try:
         blastn_cline()
     except ValueError:
@@ -350,32 +351,50 @@ def download_fasta(elm):
     records = str("\n".join(record["IdList"]))
     return (records)
 
+#This function takes a dictionary dict_match as input, which contains the id and the Blast hits of a sequence.
 def counpute_count(dict_match):
     genera_dict = {}
     species_dict = {}
     id, match_blast = dict_match
+    #The function then checks if there are multiple Blast hits for the given sequence. 
     if len(match_blast) > 1:
+        #If there are, it initializes an empty substring_counts dictionary to keep track of the counts of matching substrings between any two Blast hits. 
         substring_counts = {}
         length_array = int(len(match_blast))
+        ##It then loops over all pairs of Blast hits and uses the SequenceMatcher function to find the longest common substring between them. 
         for i in range(0, length_array):
             for j in range(i + 1, length_array):
                 string1 = match_blast[i]
                 string2 = match_blast[j]
+                ##SequenceMatcher is a Python standard library module that provides a class for comparing sequences. It compares pairs of input sequences (e.g. strings, lists) and returns a similarity ratio between 0 and 1, where 0 means completely different sequences and 1 means identical sequences.
+                ##The find_longest_match method of SequenceMatcher finds the longest contiguous matching subsequence between two strings. --> It takes four arguments, the starting and ending indices of the first sequence and the starting and ending indices of the second sequence.
+                #It returns a named tuple (the match object) containing the starting indices of the longest matching subsequence in each of the two sequences, as well as the length of the matching subsequence.
                 match = SequenceMatcher(None, string1, string2).find_longest_match(0, len(string1), 0, len(string2))
+                ##The match object returned by find_longest_match() contains information about the matching subsequence, including its starting position in string1 (match.a), its length (match.size), and its starting position in string2 (match.b).
+                #We extract the matching substring from string1 using slicing: string1[match.a:match.a + match.size].
+                #Finally, we store the matching substring in the matching_substring variable.
                 matching_substring = string1[match.a:match.a + match.size]
                 if (matching_substring not in substring_counts):
+                    #The substring_counts dictionary is then updated with the counts of each matching substring.
                     substring_counts[matching_substring] = 1
                 else:
                     substring_counts[matching_substring] += 1
+        ##The function then sorts the substring_counts dictionary by the count of matching substrings in descending order, and then by the matching substring in ascending order.
         species = sorted(substring_counts.items(), key=lambda x: (x[1], x[0]), reverse=True)
         specie_id = True
         genera_id = True
+        #It then loops over each matching substring in the sorted list and checks if it is a species name or a genus name. 
         for organism in species:
+            #If the matching substring contains a space and starts with an uppercase letter (a convention for species names), it is considered a species name. 
             if " " in organism[0] and organism[0][0].isupper() and organism[0] in match_blast:
+                #The function then extracts the genus and species names from the matching substring and checks if they are empty or not.
                 fields = organism[0].split(" ")
                 genera = fields[0]
                 specie = organism[0]
+                #If they are not empty, the function adds the sequence id to the corresponding lists in the species_dict and genera_dict dictionaries.
                 if genera != "" and specie != "" and specie_id:
+                    # If the genus or species name has already been added to the dictionary, the function does not add it again.
+                    #If the matching substring contains a space but does not start with an uppercase letter, it is considered a genus name, and the function follows the same logic as for a species name but only updates the genera_dict dictionary.
                     if organism[0] in species_dict and specie_id:
                         specie_id = False
                         species_dict[organism[0]].append(id)
@@ -386,6 +405,8 @@ def counpute_count(dict_match):
                         species_dict[organism[0]] = [id]
                         genera_id = False
                         genera_dict[genera] = [id]
+                ##If the matching substring does not contain a space, it is considered a genus name, and the function adds the sequence id to the corresponding list in the genera_dict dictionary. 
+                ##If the genus name has already been added to the dictionary, the function does not add it again.
                 elif genera != "" and specie == "" and genera_id:
                     if genera in genera_dict:
                         genera_dict[genera].append(id)
@@ -393,6 +414,7 @@ def counpute_count(dict_match):
                     else:
                         genera_id = False
                         genera_dict[genera] = [id]
+    ###If there is only one Blast hit for the given sequence, the function extracts the genus and species names from the Blast hit and adds the sequence id to the corresponding lists in the species_dict and genera_dict dictionaries.
     else:
         fields = match_blast[0].split(" ")
         genera = fields[0]
@@ -405,6 +427,7 @@ def counpute_count(dict_match):
             species_dict[species].append(id)
         else:
             species_dict[species] = [id]
+    ###The function then returns a list containing the species_dict and genera_dict dictionaries.!
     return([species_dict, genera_dict])
 
 def racon(od, fastq, threads, fast5, cwd):
@@ -585,10 +608,11 @@ def analysis():
     name_table = args.output + ".xlsx"
     figure_file = os.path.join(od, name_plot)
     name_table = os.path.join(od, name_table)
-    os.environ["BLASTDB"] = "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/tmp" ##have I this directory "/data2/blastdb"? I'm changing this with "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI"
+    os.environ["BLASTDB"] = "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/tmp/taxdb" ##have I this directory "/data2/blastdb"? I'm changing this with "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/tmp"
+    ### ^ I have insert taxdb because we have seen that the path of bastdb has to be the same where this file is store (this file is a database with the taxonomy information of all the NCBI sequence)
     blastdb = os.environ['BLASTDB']
     if args.search != "":
-        #os.path.join(blastdb, new_string) is concatenating two path components - the variable blastdb and the variable new_string - 
+        #os.path.join(blastdb, new_string) is concatenating two path components - the variable blastdb(a path) and the variable new_string(a file name) - 
         # using the appropriate path separator for the current operating system (/).
         #blastdb contains a path to a directory and new_string contains a string representing a filename so  the result will be a string representing the full path to the file
         database_name = os.path.join(blastdb, new_string)
@@ -603,7 +627,7 @@ def analysis():
             record_n = Entrez.read(handle_n)
             ##retmax = 10000000: This line sets the maximum number of records to download in a single batch.
             retmax = 10000000
-            #?
+            #? -->starting record(?)
             retstart = 0
             #repeat = (str(int(record_n['Count'])/retmax)).split(".")[0] This line calculates the number of batches required to download all the records returned by the NCBI database.
             #The Count field in the record_n variable contains the total number of records that match the query. 
@@ -635,17 +659,18 @@ def analysis():
                 threads = repeat
             #with Pool(processes=threads) as pool:: This line initializes a multiprocessing pool with a number of worker processes equal to the threads variable.
             with Pool(processes=threads) as pool:
-                ##for result in tqdm(pool.imap(func=download_fasta, iterable=id_download), total=len(id_download)):: This line starts a loop that downloads the sequences in each batch using the download_fasta() function and the parameters in the id_download list. 
+                ##for result in tqdm(pool.imap(func=download_fasta, iterable=id_download), total=len(id_download)):: This line starts a loop that downloads the gi_ID of the downloaded sequences in each batch using the download_fasta() function and the parameters in the id_download list. 
                 ##The pool.imap() function maps the download_fasta() function to the id_download list and distributes the batches to the worker processes in the multiprocessing pool. 
                 ##The tqdm() function provides a progress bar for the downloads, and the total len of the progress bar is the len of the id list
                 for result in tqdm(pool.imap(func=download_fasta, iterable=id_download), total=len(id_download)):
-                    ##result_list_tqdm.append(result): This line appends the downloaded sequences to the result_list_tqdm list.
+                    ##result_list_tqdm.append(result): This line appends the list of gi_IDs of the downloaded sequences to the result_list_tqdm list.
                     result_list_tqdm.append(result)
-            ##the variable records join all the downloaded sequences in the list dividing them with a new line
+            ##the variable records join all the gi_ID of the downloaded sequences in the list dividing them with a new line
             records = "\n".join(result_list_tqdm)
-            #fp = tempfile.NamedTemporaryFile(dir="/tmp", delete= False): This line creates a named temporary file in the /tmp directory that will be used to store the downloaded sequences in FASTA format.
+            ### print("this are records" + records) #valeria PER CONTROLLO 
+            #fp = tempfile.NamedTemporaryFile(dir="/tmp", delete= False): This line creates a named temporary file in the /tmp directory that will be used to store the gi_IDs of the downloaded sequences.
             fp = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/tmp", delete= False) ##here there is the directory dir="/tmp", TRY to change it with the same directory of the output?
-            #fp.write(records.encode()): This line writes the downloaded sequences to the temporary file in binary format. ???
+            #fp.write(records.encode()): This line writes the gi_IDs downloaded sequences to the temporary file in binary format. ???
             fp.write(records.encode())
             ##creates a string cm that runs the blastdb_aliastool command with the following arguments (it creates the .n.gil database and an alias file with the .nal extention):
             #-db nt: sets the name of the database to "nt" (corrispond to all the sequences in the database nucleotide on NCBI) we change it with a smaller database that we have dowloaded previously 
@@ -653,7 +678,7 @@ def analysis():
             #-gilist <path to tempfile>: specifies the path to a file containing a list of GI numbers to include in the database
             #-out <database name>: sets the output database name 
             ##--> l'output is the database ".n.gil" comprexed and an alias file with the same name but with the extension .nal
-            cm = "/usr/local/bin/blastdb_aliastool -db /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/tmp/xylella_fastidiosa_database.fasta -dbtype nucl -gilist %s -out %s" % (fp.name, database_name)
+            cm = "/usr/local/bin/blastdb_aliastool -db /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/tmp/final_xylella_fastidiosa_database.fasta -dbtype nucl -gilist %s -out %s" % (fp.name, database_name)
             print(cm)
             #Then the Popen() function from the subprocess module is used to run the cm command in a new process with a shell. 
             #Finally, the communicate() method is called on the blastalias object to wait for the process to finish and collect any output.
@@ -727,6 +752,7 @@ def analysis():
                 print("DATABASE NOT FOUND")
         else:
             print("DATABASE NOT FOUND")
+    
     else:
         database_name = os.path.join(blastdb, "nt")
         print("Using database %s" % database_name)
@@ -739,13 +765,13 @@ def analysis():
     number_species = []
     files_kt_list = []
     for barcode in list_barcode:
-        ##For each barcode in list_barcode, the code constructs a path to the directory containing the barcode data (dir_fastq). 
-        #If this directory exists, the code sets the result_blast flag to False, prints a message indicating which barcode is being processed, and initializes two empty lists (fastx_all and fastx_all_assembled) for storing data later in the code.
+        ##FOR EACH BARCODE IN LIST_BARCODE, the code constructs a path to the directory containing the barcode data (dir_fastq). 
         dir_fastq = os.path.join(cwd, barcode) ###cwd= args.folder_fastq (la cartella dove c'è il documento fastq da analizzare)
+        #If this directory exists, the code sets the result_blast flag to False, prints a message indicating which barcode is being processed, and initializes two empty lists (fastx_all and fastx_all_assembled) for storing data later in the code. 
         if os.path.exists(dir_fastq):
             result_blast = False
             print("EXECUTING BARCODE: %s" % barcode)
-            fastx_all = []
+            fastx_all = [] 
             fastx_all_assembled = []
             ##IF I DECIDE TO MAKE THE ASSEMBLE
             if args.assemble or args.use_assembled:
@@ -757,7 +783,7 @@ def analysis():
                     barcode_corr, spade_t = racon(od, barcode, args.threads, args.folder_fast5, cwd)
                     for record in SeqIO.parse(barcode_corr, "fasta"):
                         fp = tempfile.NamedTemporaryFile(dir="/tmp", suffix=".fasta", mode="w", delete=False)
-                        fo = tempfile.NamedTemporaryFile(dir="/tmp", mode="w", prefix=barcode, suffix=".blastn", delete=False)
+                        fo = tempfile.NamedTemporaryFile(dir="/tmp", mode="w", prefix=barcode, suffix=".blastn", delete=False) ##there is a blastn file for each reads of a barcode
                         SeqIO.write(record, fp, "fasta")
                         fastx_all_assembled.append([fp.name, database_name, fo.name])
                         # else:
@@ -770,18 +796,18 @@ def analysis():
                 else:
                     print("USING NON-ASSEMBLED READS FOR ALIGNEMENT TO DATABASE FOR BARCODE " + barcode)
                 fastx_all = fastx_all_assembled
-            ##IF I DON'T DECIDE TO USE THE USED THE ASSEMBLED READS
+            ##IF I DON'T DECIDE TO USE THE USED ASSEMBLED READS
             else:
                 ##porechop is used for adapter trimming and demultiplexing of Oxford Nanopore Technologies (ONT) sequencing data
                 print("RUNNING PORECHOP")
-                reads_porechop = tempfile.NamedTemporaryFile(suffix=".fastq", delete=False)
+                reads_porechop = tempfile.NamedTemporaryFile(suffix=".fastq", delete=False) ###this should be the file output name of porechop with the path to this file: "/var/folders/c2.../T/" (because then, in PORECHOP % the third element is this)
                 print(reads_porechop)
 
                 porechop_cmd = PORECHOP % (barcode, args.threads, reads_porechop.name)
                 print(porechop_cmd)
-                print ("reads_porechop.name:" + reads_porechop.name)  #VALERIA PER CONTROLLO
+                #print ("reads_porechop.name:" + reads_porechop.name)  #VALERIA PER CONTROLLO
                 print("porechop command: " + porechop_cmd) #DANI PER CONTROLLO (?) ##this is the folder where it is stored /var/folders/c2/gghtq5tn77z8g_cgbf14n7nr0000gn/T/
-                porechop = sb.Popen(porechop_cmd, shell=True, cwd=cwd, stderr=sb.PIPE, stdout=sb.PIPE) ###cwd= args.folder_fastq (la cartella dove c'è il documento fastq da analizzare)
+                porechop = sb.Popen(porechop_cmd, shell=True, cwd=cwd, stderr=sb.PIPE, stdout=sb.PIPE) ###cwd= args.folder_fastq (la cartella dove c'è il documento fastq da analizzare i miei fastq pass)
                 porechop.communicate()
                 ##IF I DECIDE TO CORRECT THE READS
                 if args.correct:
@@ -830,19 +856,19 @@ def analysis():
                 else:
                     print(reads_porechop.name)
                     ##The following: SeqIO module to read a Fastq file, perform some processing on each record, and add the processed record to a list.
-                    # The for loop iterates over the records in the Fastq file reads_porechop.name (the file with our sequences with the adapter removed and demultiplexed) using the SeqIO.parse() function with the file format specified as "fastq".
+                    # The for loop iterates over the records in the Fastq file reads_porechop.name (the file with our sequences with the adapter removed and demultiplexed, that is stored in the folders .../T/) using the SeqIO.parse() function with the file format specified as "fastq".
                     #reads_porechop= (the file with our sequences with the adapter removed and demultiplexed) in a temporary file format with the extension (.fastq)
                     for record in SeqIO.parse(reads_porechop.name, "fastq"):
                         #print("records: " + record) ##DANI PER CONTROLLO
-                        #For each record, the code creates a temporary file (fp) to write the sequence demultiplexed and without adapter in fasta format.
+                        #For each record, the code creates a temporary file (fp) to write the sequence demultiplexed and without adapter in fasta format. --> There is a fasta file for each read of a barcode
                         fp = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo", suffix=".fasta", mode="w", delete=False) ##here i changed the directory from "/tmp" to "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo"
-                        #It also creates another temporary file (fo) with a name derived from the barcode (presumably for writing the BLAST output).
+                        #It also creates another temporary file (fo) with a name derived from the barcode (for writing the BLAST output).--> there is a blastn file for each read of a barcode
                         fo = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo", mode="w", prefix=barcode, suffix=".blastn", delete=False) ##here i changed the directory from "/tmp" to "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo"
                         #The code then uses the SeqIO.write() function to write the record to the fp file in fasta format. 
                         SeqIO.write(record, fp, "fasta")
                         #It then appends a list [fp.name, database_name, fo.name] to the fastx_all list, 
-                        #which contains the name of the fasta file, the name of the BLAST database to search against (database_name), and the name of the BLAST output file.
-                        fastx_all.append([fp.name, database_name,fo.name]) #esempio del contenuto di questa lista: "[['/tmp/tmposk0hxgn.fasta', '/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/tmp/Xylella_NOT_uncultured_All_Fields_AND_100_5000_SLEN_AND_subsp_All_Fields_', '/tmp/barcode18p4h_1dy8.blastn']]"
+                        #which contains the name of the fasta file, the name of the BLAST database to search against (database_name), and the name of the BLAST output file (.blastn) (one file for each read)
+                        fastx_all.append([fp.name, database_name,fo.name]) #esempio del contenuto di questa lista: "[['/fp_fo/tmposk0hxgn.fasta', '/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/tmp/taxdb/Xylella_NOT_uncultured_All_Fields_AND_100_5000_SLEN_AND_subsp_All_Fields_', '/fp_fo/barcode18p4h_1dy8.blastn']]"
                         if not barcode.endswith("raw"):
                             if barcode.endswith("/"):
                                 barcode = barcode.split("/")[-2]+ "raw"
@@ -855,92 +881,127 @@ def analysis():
             print("RUNNING BLAST USING "  + str(args.threads) + " THREADS")
             ##This code block is responsible for running BLAST on the demultiplexed reads for each barcode.
             #First, an empty list is created to store the results (result_list). 
-            # #Then, the code enters a with block where a multiprocessing.Pool object is created with a number of processes equal to args.threads.
+            ##Then, the code enters a with block where a multiprocessing.Pool object is created with a number of processes equal to args.threads.
             with Pool(processes=args.threads) as pool:
-                #The Pool.imap() method is used to apply the blast() function (the luigi fuction that ask for tree element to be specified)  to each element in the fastx_all iterable (i.e., the list of input files for BLAST, composed by: the fil fp with the reads demulptiplexed and without adapter in a fasta format; the name of the database.n.gil without the extention, and the output name). 
+                #The Pool.imap() method is used to apply the blast() function (the luigi fuction that ask for tree element to be specified) to each element in the fastx_all listS iterable (i.e., the list of input files for BLAST, composed by: the file fp one for each read demulptiplexed and without adapter in a fasta format; the name of the database.n.gil without the extention, and the output name). 
                 # ---> the function blast is the one created by Luigi: blast(elm): blastn_cline = NcbiblastnCommandline(db=elm[1], query=elm[0], evalue=0.001, out=elm[2] ,outfmt = "6 qseqid sseqid bitscore sscinames pident evalue staxids qlen" )
                 #tqdm library is used to display a progress bar; the total lenght of the bar is the lenght of the fastx_all file.
                 for result in tqdm(pool.imap(func=blast, iterable=fastx_all), total=len(fastx_all)): ##in questo caso stiamo specificando che elm (l'argomento della funzione blust creata da luigi) è fastx_all!!! che è una lista formata da tre elementi (ecco perchè elm [0], elm [1] etc)
-                    #The results (files .blstn) are stored in the result_list variable
+                    #The results (files .blastn) are stored in the result_list variable --> there is a .blastn file for each read of the barcode
                     result_list.append(result)
+            #print(result_list) #valeria PER CONTROLLO. => A list with the path and the name of the different .blastn files ['/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo/barcode18nzqh9jla.blastn', '/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo/barcode18rawvmacyc9o.blastn', '/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo/barcode18raw5h0kzx5a.blastn', '/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo/barcode18rawwl56hp1w.blastn', 
             result_list_tqdm = []
             ##od = os.getcwd() --> The os module provides a way to interact with the operating system in Python. The getcwd() function from the os module returns a string representing the current working directory. The code od = os.getcwd() assigns the value returned by getcwd() to the variable od.
             #we are defining the name of the output file of blust for each of the analized barcode 
             name_blast = os.path.join(od, args.output + barcode + ".blast.txt")
             #write a new file that will be named with the name_blust defined before
             with open(name_blast, "w") as new_file:
-                ##for each of the result name (the ones .blstn) open a list name data_single_file
+                ##for each result name in the result_list (the .blastn file names) open a list named data_single_file
                 for name in result_list:
                     data_single_file = []
-                    ##For each result name in the list, it opens the file using the with statement and assigns it to the variable f
+                    ##For each result name (.blastn files) in the list, it opens the file using the with statement and assigns it to the variable f
                     with open(name) as f:
-                        #It then loops through each line in the file using a for loop, writes the line to the new_file, and appends it to the data_single_file list.
+                        #It then loops through each line (the informations of each possible match that this specific read) in the file using a for loop, writes the line to the new_file, and appends it to the data_single_file list.
                         for line in f:
-                            new_file.write(line)
-                            data_single_file.append(line)
+                            new_file.write(line) ##a questo punto ha scritto tutti i file di output "nome_barcode.blast.txt" 
+                            data_single_file.append(line) ##li salva anche in una lista perchè serve per i passaggi successivi. una lista per ogni barcode
                         #After reading all lines in the file, it writes a newline character to new_file.
                         new_file.write("\n")
-                    #and then joins the data_single_file lists into a single string using the newline character as a separator and assigns it to the variable blast_out_single. 
+                    #print(data_single_file) #valeria per controllo --> several listS with the the content of "nome_barcode.blast.txt" without newline ex. output ['9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|2293497712|gb|MW940137.1|\t1072\tN/A\t94.828\t0.0\t0\t683\n', '9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|397790742|gb|JQ290498.1|\t1066\tN/A\t94.684\t0.0\t0\t683\n',
+                    #and then joins the data_single_file listS (one list for each read) into a single string using the newline character as a separator of each line and assigns it to the variable blast_out_single. 
                     blast_out_signle = "\n".join(data_single_file)
+                    ##print(blast_out_signle) valeria PER CONTROLLO --> they are the lines inside of the "nome_barcode.blast.txt" file separated by newline (I know because I printed it)
                     ##The blast_out_single string is then appended to the result_list_tqdm list.
                     result_list_tqdm.append(blast_out_signle)
                     #Finally, the code uses the os module's remove() function to delete the file that was just processed.
                     os.remove(name)
-                    #print(result_list_tqdm) #VALERIA PER CONTROLLO
+            #print(result_list_tqdm) #VALERIA PER CONTROLLO --> is a unique list with the lines inside of the "nome_barcode.blast.txt" with /n between the several line for one read and with a "," between the line of each new read ex. \t976\tN/A\t92.609\t0.0\t0\t683\n\n9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|284814416|gb|FJ610176.1|\t976\tN/A\t92.598\t0.0\t0\t683\n\n9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|313104579|gb|HM243599.1|\t970\tN/A\t92.464\t0.0\t0\t683\n', '']
                     #### ^ The purpose of this code is to merge the contents of multiple files into a single file and to store the individual file contents as a list of strings in result_list_tqdm. The with statement is used to ensure that each file is closed after it has been read and written to new_file, and the os.remove() function is used to delete the original file after it has been processed to save space on the disk.
-            #The loop over result_list_tqdm check if any lines of data are present in the result_list_tqdm list and if result_blast is not true (before there is written that, if the path to the fastq file exist the result_blast should be false)
+           
+            #If an element in the list result_list_tqdm is not empty and has not yet been flagged as a hit (result_blast is initially set to False), then result_blast is set to True. (before there is written that, if the path to the fastq file exist the result_blast should be false)
             for line in result_list_tqdm:
                 if line != "" and not result_blast:
                     result_blast = True
-            #If no data is present (if result_blust is not true, like we said in the previous line) the loop continues
+            #If there are no hits in the result, the loop continues to the next result using the continue statement.
+            #A flag in Python acts as a signal to the program to determine whether or not the program as a whole or a specific section of the program should run. In other words, you can set the flag to True and the program will run continuously until any type of event makes it False. Then the program, loop, or whatever you're using a flag for will stop.
             if not result_blast:
                 continue
+            #For each result with a hit, the code creates a dictionary called read_best_hit. This dictionary will eventually contain the best match for each query sequence.
             read_best_hit = {}
             ##the code below parses each line of output from a sequence alignment file, then sorting and selecting the highest-scoring alignment(s) for each read based on certain criteria. The selected alignment(s) are stored in a dictionary called read_best_hit.
+            ##The code iterates through the lines of the result again, splitting each line by the tab character to separate the different fields of the output.
             #The loop over result_list_tqdm processes each line of the file by splitting it into a list of elements using tab ('\t') as a separator.
             for output in result_list_tqdm:
                 if output != "":
                     align_species = {}
-                    #each element of the reslut_list_tqdm is split with a \n and this new format is stored in the variable align
+                    #each line of block of match informations of a sigle read is devided with /n in result_list_tqdm. With this function (split) we divided each of these lines in different element and this new format is stored in the variable align.
                     align = output.split("\n") 
-                    #each element in align is split with a \t
+                    #print(align) #esempio di un pezzo di align '9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|827353834|gb|KP282072.1|\t976\tN/A\t92.598\t0.0\t0\t683', '', '9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|827353836|gb|KP282073.1|\t976\tN/A\t92.598\t0.0\t0\t683', '', '9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|827353838|gb|KP282074.1|\t976\tN/A\t92.598\t0.0\t0\t683', '', '9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|284814410|gb|FJ610173.1|\t976\tN/A\t92.609\t0.0\t0\t683', '', '9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|284814416|gb|FJ610176.1|\t976\tN/A\t92.598\t0.0\t0\t683', '', '9bbce8e7-3a75-458f-831b-9c00f58088ed\tgi|313104579|gb|HM243599.1|\t970\tN/A\t92.464\t0.0\t0\t683', '']
+                    #then, each element of a line in the block of match informations, that are divided with a /t, is divided in different element with this function and the result is store in the variable align_elm
                     for single_align in align:
                         align_elm = single_align.split("\t")
-                        #If the length of the single_align list is greater than 3, the program proceeds to the next step. Otherwise, it ignores the line.
+                        #If the length of the single_align (that are the elements of the variable "align") is greater than 3, the program proceeds to the next step. Otherwise, it ignores the line.
+                        #--> The if statement checks that the line has at least four elements (query ID, subject ID, percent identity, and alignment length? (qseqid sseqid bitscore sscinames)), and that the percent identity meets a certain threshold (args.percentage) and that the score (bitscore?) is greater than 200.
                         if len(single_align) > 3:
+                            #If these conditions are met, the code creates a dictionary called align_species_score with the perc. of identity (pident?) as the key and a list containing the scientific name (sscinames?) as the value. 
                             align_species_score = {}
                             read = align_elm[0]
                             score = float(align_elm[2])
                             align_species_score[align_elm[4]] =  [align_elm[3]]
+                            #print(align_species_score) ##VALERIA PER CONTROLLO ex. result--> {'95.819': ['N/A']} each of the sscinames is N/A
+                            ###if bitscore (the element 2 in the align_elm variable) is > 200 and pident (element 4 in the align:elm variable) meets the threshold of args.percentage
                             if score > 200 and float(align_elm[4]) >= args.percentage :
+                                #If the score is already present as a key in the align_species dictionary, the code iterates over the keys of the value (which is a dictionary of species and their respective percent identity)
                                 if score in align_species:
+                                    #The align_species_score dictionary is then added to the align_species dictionary with the score of the alignment as the key and the align_species_score dictionary as a value.
                                     for key in  align_species[score]:
+                                        #then checks whether the percent identity of the current alignment (align_elm[4]) is already present in the align_species_score dictionary. 
                                         if align_elm[4] in align_species_score:
+                                            #If it is, the scientific name (align_elm[3]) is appended to the list of species names for that percent identity. 
                                             align_species[score][key].append(align_elm[3])
                                         else:
+                                            #If not, a new key-value pair is added to the align_species dictionary, where the bitscore is the key and the list of species names is the value.
                                             align_species[score][key] = [align_elm[3]]
                                 else:
+                                    #If the score is not already present in the align_species dictionary, a new key-value pair is added, where the score is the key and the align_species_score dictionary (with the percent identity as key and the list of species names as value) is the value.
                                     align_species[score] = align_species_score
+                    #print(align_species) #VALERIA PER CONTROLLO there are several dictionary ex. of a part of the results: {765.0: {'96.186': ['N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A']}, 760.0: {'95.975': ['N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A']}, 726.0: {'94.715': ['N/A']}, 721.0: {'94.503': ['N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A']}, 715.0: {'94.292': ['N/A', 'N/A', 'N/A']}, 710.0: {'94.080': ['N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A']}, 704.0: {'93.869': ['N/A']}, 699.0: {'93.658': ['N/A']}, 339.0: {'94.196': ['N/A']}, 274.0: {'95.882': ['N/A']}}
+                    #The code then checks if any alignments were found for the query sequence 
                     if align_species:
+                        #(align_species is not empty). If so, it sorts the align_species dictionary by score in descending order and selects the dictionary with the highest score 
                         list_align_species = list(align_species.items())
                         list_align_species.sort(reverse=True)
+                        #(align_species_ident). It then sorts align_species_ident by percent identity in descending order and selects the list of percent identities with the highest value 
                         align_species_ident = list_align_species[0][1]
+                        #(align_species_ident_b). This list of percent identities is then added to the read_best_hit dictionary with the query sequence ID (align_elm[0]) as the key.
                         list_align_species_b = list(align_species_ident.items())
                         list_align_species_b.sort(reverse=True)
                         align_species_ident_b = list_align_species_b[0][1]
                         read_best_hit[read] = align_species_ident_b
+            #print(read_best_hit) #VALERIA PER CONTROLLO ex. of the end of read_best_hit dictionary --> '15d0e68e-b6b4-4143-9852-eadc946f211e': ['N/A', 'N/A', 'N/A'], '2ff01489-113e-41d8-a61b-20a45638e687': ['N/A'], '28b9fdfa-c2ba-4648-8507-762ceb1399e5': ['N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A'], '9bbce8e7-3a75-458f-831b-9c00f58088ed': ['N/A']}
+            ####This code is taking a list of matches (read_best_hit) and creating a new list (dict_match) that contains the key-value pairs from read_best_hit. 
             dict_match = []
+            ##match are the different key-value elements in read_best_hit dictionary.
             for match in read_best_hit:
                 dict_match.append([match, read_best_hit[match]])
             result_list_tqdm = []
+            ####Then it creates a pool of worker processes using the Python multiprocessing module 
+            ###and uses the "imap" method to parallelize the "compute_count" function over the items in dict_match (=the dict_match is the object of luigi function "counpute_count" that returns a list containing the species_dict and genera_dict dictionaries of all of the Blast hits for the given sequence in dict_match). 
             with Pool(processes=args.threads) as pool:
                 for result in tqdm(pool.imap(func=counpute_count, iterable=dict_match), total=len(dict_match)):
+                    ###The results of each parallel computation are stored in a list called "result_list_tqdm".
                     result_list_tqdm.append(result)
-
+            #print(result_list_tqdm) ##VALERIA PER CONTROLLO ex. first part of the result output: [[{}, {}], [{'N/A': ['fad34af2-cce1-41a3-8012-900420a63dc2']}, {'N/A': ['fad34af2-cce1-41a3-8012-900420a63dc2']}], [{'N/A': ['ebb84d75-16bd-4e79-8b39-052c9ff14dab']},
+            #after this, the code creates a temporary file using the "tempfile" module with a unique name based on the barcode, and writes the output to this file. 
             kt_barcode = tempfile.NamedTemporaryFile(suffix=".txt", prefix=barcode, delete=False, mode = "w")
             files_kt_list.append(kt_barcode.name)
+
+            #The output is generated by looping over the items in "result_list_tqdm", 
             for value in result_list_tqdm:
+                #and for each item, looping over the keys in the first element of the item (which is a dictionary).
                 for key in value[0]:
+                    ##For each key, it looks up the corresponding taxonomic ID using the "get_name_translator" method from the BioPython library, 
+                    ##and writes the read ID and taxonomic ID to the temporary file.
                     read = value[0][key][0]
                     taxid = ncbi.get_name_translator([key])
                     #print("before")
@@ -952,10 +1013,13 @@ def analysis():
                             species_count = str(taxid[key][0]).split(";")[0]
                             kt_barcode.write(read + "\t" + species_count + "\n")
                         except:
+                            ## If the taxonomic ID is not found, the code prints a warning message and continues to the next iteration of the loop.
                             print("NO TAXID FOR " + taxid[key][0])
                             continue
+            ##This code seems to be calculating the frequency of species and genera in the result_list_tqdm. 
             species_dict = {}
             genera_dict = {}
+            ##The code loops through each dictionary in result_list_tqdm, extracts the species and genera keys, and updates the counts in species_dict and genera_dict.
             for result in result_list_tqdm:
                 sp = list(result[0].keys())
                 gen = list(result[1].keys())
@@ -969,7 +1033,10 @@ def analysis():
                         genera_dict[gen[0]] = [genera_dict[gen[0]][0] + 1]
                     else:
                         genera_dict[gen[0]] = [1]
+            #print(species_dict) #valeria PER CONTROLLO ---> OUTPUT: {'N/A': 182}
+            #print(genera_dict)#valeria PER CONTROLLO ----> OUTPUT: {'N/A': [182]}
             total_reads_mapped = sum(species_dict.values())
+            #After counting the species and genera, it calculates the minimum number of reads needed for a species to be considered present, based on the args.min argument,
             min_value = total_reads_mapped * (float(args.min)/100)
             if min_value < 1 :
                 if not args.assemble:
@@ -981,24 +1048,44 @@ def analysis():
                 current_value = species_dict[key]
                 if current_value >= min_value:#float(args.min):
                     species_retain[key] = species_dict[key]
+            ##and then calculates the final percentage of each species based on the retained species. 
             for key in species_retain:
                 specied_final[key] = species_retain[key] / sum(species_retain.values()) * 100
                 number_species.append(key)
+            ## It then stores this information in dict_species_all and dict_table_all.
             dict_species_all[barcode] = specied_final
             dict_table_all[barcode] = dict(sorted(species_dict.items(), key=lambda item : item[1]))
+            #print(dict_species_all) #valeria PER CONTROLLO OUTPUT: --> {'barcode18raw': {'N/A': 100.0}}
+            #print(dict_table_all) #valeria PER CONTROLLO output: --> {'barcode18raw': {'N/A': 182}}
+    
     # KTIMPORTTAX
+        ###if the path of the fastq file (dir_fastq) doesn't exist:
         else:
             print("PATH FOR BARCODE " + barcode + " DO NOT EXISTS. CHECK BARCODE NAME OR PATH" )
+    #print(files_kt_list) #valeria PER CONTROLLO --> OUTPUT: is the path to the folders with the file with our sequences with the adapter removed and demultiplexed (porechop output): ['/var/folders/c2/gghtq5tn77z8g_cgbf14n7nr0000gn/T/barcode18rawu8sx7o99.txt'] 
+    
+    ##This section of code generates a stacked bar plot of the relative abundance of species in each barcode, based on the output of the previous steps. 
+    ##The plot is saved as a file with the name specified by figure_file.
     if len(files_kt_list) > 0:
+        #This section of the code creates a single string, files_kt, by joining the paths in files_kt_list with a space character in between
         files_kt = " ".join(files_kt_list)
-        k = KTIMPORTTAX % (blastdb, args.output + ".html", files_kt)
-        print(k)
+        #This string is then used to create a command k that is passed to subprocess.Popen().
+        ##KTIMPORTTAX is the function "ktImportTaxonomy -tax %s -o %s %s", where the argument -tax is , and -o specify the output file for the annotated phylogenetic tree. This option accepts the path and filename of the output file (but er put only the name). e il secondo elemento %s è il file di input  
+        ####in this case, blastdb is a path to the output folder (?)
+        k = KTIMPORTTAX % ("/Users/it031376/local/bin/KronaTools-2.8.1/taxonomy", args.output + ".html", files_kt)
+        print(k) # OUTPUT: --> ktImportTaxonomy -tax /Users/it031376/local/bin/KronaTools-2.8.1/taxonomy -o output.html /var/folders/c2/gghtq5tn77z8g_cgbf14n7nr0000gn/T/barcode18raw1fgyrkjc.txt
+        ##ktimport is an instance of the Popen class, which starts a new process to execute the k command. 
+        ####The shell=True argument allows us to use shell syntax in the k command. cwd=od specifies the working directory where the command should be run (THIS COULD BE THE PROBLEM!). 
+        #####-->od = os.getcwd() --> The os module provides a way to interact with the operating system in Python. The getcwd() function from the os module returns a string representing the current working directory.
         ktimport = sb.Popen(k, shell=True, cwd=od)
+        #he communicate() method is called on ktimport to wait for the command to finish executing before continuing with the rest of the code.
         ktimport.communicate()
-
+        #This part creates a stacked bar chart using the Pandas DataFrame species_pd that is generated from the dictionary dict_species_all containing the relative abundance of each species for each barcode.
         species_pd = pd.DataFrame.from_dict(dict_species_all, orient='index')
+        #First, the code creates a list of species names called species_name_colors, which is used to generate a color map for the plot.
         species_name_colors = [name for barcode in dict_species_all for name in dict_species_all[barcode]]
         species_name_colors = list(dict.fromkeys(species_name_colors))
+        #Then, the code creates a linear segmented colormap called cmap1 using cmap2, a list of the colors corresponding to each species in species_name_colors
         cmap = convert_color(species_name_colors)
         cmap2 = []
         for i in cmap:
@@ -1006,6 +1093,8 @@ def analysis():
         species_abs = pd.DataFrame.from_dict(dict_table_all, orient='index')
         species_abs.transpose().to_excel(name_table)
         cmap1 = LinearSegmentedColormap.from_list("my_colormap", cmap2)
+        #The code then creates a new figure and plots the data in species_pd as a stacked bar chart using the color map cmap1. 
+        #The legend is placed outside of the plot to the right, and the title, x-axis label, and y-axis label are set. Finally, the plot is saved as a file with the name specified by figure_file.
         species_pd.head()
         species_pd.fillna(0)
         f = plt.figure()
@@ -1016,6 +1105,7 @@ def analysis():
         plt.ylabel("Relative abundance(%)")
         #plt.show()
         plt.savefig(figure_file)
+    ##If files_kt_list is empty, then the code prints "NOTHING TO PLOT" and does not generate a plot.
     else:
         print("NOTHING TO PLOT")
 
