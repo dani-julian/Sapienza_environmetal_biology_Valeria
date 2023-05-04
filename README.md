@@ -15,8 +15,8 @@ A step-by-step guide on how to install and run the project on a local machine.
 
 ## Usage
 
-Instructions and examples on how to use the project, including code snippets and/or screenshots.
-To run this script it's necessary to download a database from NCBI with the sequences with which to align our queries.
+Instructions and examples on how to use the project, including code snippets and/or screenshots.  
+To run this script it's necessary to download a database from NCBI with the sequences with which to align our queries.  
 To do this you have to: 
 - click on this site: https://www.ncbi.nlm.nih.gov
 - select the 'nucleotide' database and in the search bar at the top search for the database of interest
