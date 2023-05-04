@@ -22,7 +22,7 @@ To do this you have to:
 - select the 'nucleotide' database and in the search bar at the top search for the database of interest
 - then click on "send to" in the top right-hand corner
 - select "Complete Record" -> "File", the format "FASTA" and tick the box with Show GI
-![example: HOW TO DOWNLOAD NCBI DATABASES](https://github.com/dani-julian/Sapienza_environmetal_biology_Valeria/ex_ncbi.png)
+![example: HOW TO DOWNLOAD NCBI DATABASES](https://github.com/dani-julian/Sapienza_environmetal_biology_Valeria/example_NCBI.png)
 
 
 ## Contributing
