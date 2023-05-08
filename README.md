@@ -32,7 +32,7 @@ To do this:
 $ esearch -db nucleotide -query "name_of_your_database" | efetch -format acc > name_of_first_txt_file.txt  
 $ esearch -db nucleotide -query "name_of_your_database" | efetch -format docsum | xtract -pattern DocumentSummary -element TaxId > name_of_second_txt_file.txt  
 $ paste -d " " name_of_first_txt_file.txt name_of_second_txt_file.txt > definitive_txt_table.txt
-- Build a BLAST database with your (local) sequences adding sequence ID and taxa ID information:
+- Build a BLAST database with your sequences adding sequence ID and taxa ID information:  
 $ makeblastdb -in "name_of_your_database.fasta" -dbtype nucl -input_type fasta -parse_seqids -taxid_map definitive_txt_table.txt
 
 ## Contributing
