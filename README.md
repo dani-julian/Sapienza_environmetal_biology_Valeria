@@ -26,7 +26,7 @@ To do this you have to:
 
 In order to have the database with the correct format to run the script, you must add the GI and scientific name informations of the organisms associated with the downloaded sequences.  
 To do this:
-- download the file with the taxonomic information of the sequences on NCBI taxdb.tar.gz from this link: https://ftp.ncbi.nlm.nih.gov/blast/db/
+- download the file with the taxonomic information of the sequences on NCBI "taxdb.tar.gz" from this link: https://ftp.ncbi.nlm.nih.gov/blast/db/
 - save the file in the same directory of the downloaded NCBI database
 - download from NCBI the information of the sequence ID and taxa ID and merge them into a txt file with two columns separated by a space:  
 $ esearch -db nucleotide -query "name_of_your_database" | efetch -format acc > name_of_first_txt_file.txt  
