@@ -23,6 +23,7 @@ To do this you have to:
 - then click on "send to" in the top right-hand corner
 - select "Complete Record" -> "File", the format "FASTA" and tick the box with Show GI
 ![example: HOW TO DOWNLOAD NCBI DATABASES](https://github.com/dani-julian/Sapienza_environmetal_biology_Valeria/blob/869202326a3aefd852e83987837cbd2708a0bbad/example_NCBI.png)  
+
 In order to have the database with the correct format to run the script, you must add the GI and scientific name informations of the organisms associated with the downloaded sequences.  
 To do this:
 - download the file with the taxonomic information of the sequences on NCBI taxdb.tar.gz from this link: https://ftp.ncbi.nlm.nih.gov/blast/db/
