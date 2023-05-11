@@ -62,7 +62,8 @@ from ete3 import NCBITaxa
 matplotlib.style.use('ggplot')
 #ktImportTaxonomy commonly used for the analysis and visualization of phylogenetic trees. 
 #The "-tax" option is used to specify the type of taxonomic data that is being imported.For example, you might use "-tax ncbi" to specify that the taxonomic data is in NCBI Taxonomy format
-#The "-o" option is used to specify the output file for the annotated tree. This option accepts the path and filename of the output file. 
+#The "-o" option is used to specify the output file for the annotated tree. This option accepts the path and filename of the output file, but here we specified only the name;
+#the final %s is to specified the input.file 
 KTIMPORTTAX = "ktImportTaxonomy -tax %s -o %s %s"
 ##Minimap2 is a software tool used for fast and accurate pairwise alignment of DNA or RNA sequences
 ##MINIMAP: ALIGNMENT NANOPORE READS AGAINST EACH OTHER
@@ -82,11 +83,12 @@ MINIMAP_SY = "minimap2 -a -x map-ont -t %s %s %s "
 ##"-O BAM" specifies the output file format for the sorted file, in this case, "BAM"
 SAMSORT = "samtools sort -o %s -O BAM"
 SAMINDEX = "samtools index %s"
-##Racon is a software tool for polishing genome assemblies using long read sequencing data. Its main function is to correct errors in an initial draft assembly using long-read sequencing data from PacBio or Oxford Nanopore Technologies (ONT) platforms.
-##First, Racon maps the long reads back to the initial draft assembly using a fast and efficient alignment algorithm. Next, it identifies discrepancies between the draft assembly and the long reads, such as mismatches, insertions, and deletions. Finally, 
+##Racon is a software tool for polishing (migliorare) genome assemblies using long read sequencing data. Its main function is to correct errors in an initial draft assembly using long-read sequencing data from PacBio or Oxford Nanopore Technologies (ONT) platforms.
+##First, Racon maps the long reads back to the initial draft assembly (I don't know if has to be an assembly) using a fast and efficient alignment algorithm. Next, it identifies discrepancies between the draft assembly and the long reads, such as mismatches, insertions, and deletions. Finally, 
 ##Racon generates a new consensus sequence for each region of the assembly, based on the majority vote of the aligned long reads.
 #"t": threads
-#"-f" specifies the input file path for the FASTQ or FASTA format reads to be used for polishing the assembly. This option tells Racon which long read sequencing data to use to correct errors in the initial draft assembly.
+#-f, --fragment-correction perform fragment correction instead of contig polishing (overlaps file should contain dual/self overlaps!)
+#?? "-f" specifies the input file path for the FASTQ or FASTA format reads to be used for polishing the assembly. This option tells Racon which long read sequencing data to use to correct errors in the initial draft assembly.
 RACON = "racon -t %s -f %s %s %s"
 ##porechop is a software tool used for adapter trimming and demultiplexing of Oxford Nanopore Technologies (ONT) sequencing data (the second one separating sequencing reads into different files based on their barcode tags). 
 ##The primary function of Porechop is to remove adapter sequences and barcode tags from raw ONT sequencing data
@@ -430,42 +432,76 @@ def counpute_count(dict_match):
     ###The function then returns a list containing the species_dict and genera_dict dictionaries.!
     return([species_dict, genera_dict])
 
+
+##od = os.getcwd() --> The os module provides a way to interact with the operating system in Python. The getcwd() function from the os module returns a string representing the current working directory. The code od = os.getcwd() assigns the value returned by getcwd() to the variable od.
 def racon(od, fastq, threads, fast5, cwd):
+    #the function uses os.walk() to traverse a directory tree rooted at os.path.join(cwd,fastq) and process each FastQ file found.
+    #os.walk() returns a generator that yields a 3-tuple (dirpath, dirnames, filenames) for each directory in the tree. 
+    #The topdown argument is set to False so that the directory tree is traversed bottom-up.
     for root, dirs, files in os.walk(os.path.join(cwd,fastq), topdown=False):
         reads_fastq = tempfile.NamedTemporaryFile(suffix=".fastq", delete=False)
+        #the function opens the temporary file in write mode
         with open(reads_fastq.name, "w") as outfile:
             for filename in files:
+                #The filename variable is assigned the absolute path of the FastQ file by joining the cwd, fastq, and filename using the os.path.join() function.
                 filename = os.path.join(cwd, fastq, filename)
+                #For each file, the function opens the file using gzip.open() (assuming it's a gzipped FastQ file) and reads its contents line by line in binary mode ('rb').
                 with gzip.open(filename, 'rb') as infile:
                     for line in infile:
+                        # It then writes each line to a temporary file (reads_fastq) after decoding it from bytes to string using the decode() method.
+                        # This is necessary because the contents of the FastQ file are in binary format, so they need to be converted to strings before they can be processed
+                        #This process is repeated for each file in the directory tree, and the resulting temporary file contains all the FastQ reads from all the files in the directory tree.
                         outfile.write(line.decode())
-
+    #reads_fastq is the file written above (fixed in the variable colled outfile) with the line of the fastq file decoded
+    ##this file is stored in the variable read_mapping
+    #This variable is later used as an argument to the PORECHOP command (a command-line tool for trimming adapters from Oxford Nanopore reads) to specify the input FastQ file.
     read_mapping=reads_fastq.name
     print("RUNNING PORECHOP")
+    #reads_porechop_1 is a temporary file with a .fastq suffix that will be used to store the trimmed reads output by Porechop,
     reads_porechop_1 = tempfile.NamedTemporaryFile(suffix=".fastq", delete=False)
-    reads_porechop = "/tmp/" + uuid.uuid4().hex + ".fastq"
+    #reads_porechop is a file path string that specifies the name and location of the final output FastQ file.
+    #it generates a random file name for the final output FastQ file.
+    #uuid.uuid4().hex generates a random UUID (Universally Unique IDentifier) version 4, which is a 128-bit value represented as a hexadecimal string.
+    #This UUID is then concatenated with ".fastq" to create a file name with a .fastq suffix.
+    reads_porechop = "/tmp/" + uuid.uuid4().hex + ".fastq" ##change /tmp/ with /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/RACON
+    #porechop_cmd string using the PORECHOP constant and the variables read_mapping, threads, and reads_porechop_1.name. The % operator is used to substitute these variables into the PORECHOP string (-input -threads - output)
     porechop_cmd = PORECHOP % (read_mapping, threads, reads_porechop_1.name)
-    ##sb.Popen serve per correre con python un programma di bash
+    ##sb.Popen serve per correre con python un programma di bash (commento di luigi?)
+    #The PORECHOP command is executed using sb.Popen(). The shell=True argument indicates that the command should be run in a shell environment. 
+    #The cwd argument specifies the working directory where the command should be run, and the stderr and stdout arguments specify that the output and error messages should be captured in pipes
     porechop = sb.Popen(porechop_cmd, shell=True, cwd=cwd, stderr=sb.PIPE, stdout=sb.PIPE)
+    #The porechop.communicate() method is called to start the porechop program and wait for it to finish. This method blocks the execution of the script until the command finishes running.
     porechop.communicate()
     min = 1
     max = 200000
+    #then it open the files reads_porechop with a random UUID in a write mode and storing it in the variable fh
     with open(reads_porechop, "w") as fh:
+        #the code reads from the intermediate output file (reads_porechop_1) in "fastq" format using SeqIO.parse() method
         for record in SeqIO.parse(reads_porechop_1.name, "fastq"):
+            #For each record in the intermediate output file, if the length of the read sequence is between min and max (inclusive)
             if min < len(record.seq) < max:
+                ##the record is written to the output file (reads_porechop) using SeqIO.write() method in "fastq" format
                 SeqIO.write(record, fh, "fastq")
     sam = tempfile.NamedTemporaryFile(suffix=".sam", delete=False)
     reads = tempfile.NamedTemporaryFile(suffix=".fasta", delete=False)
     print("RUNNING MINIMAP")
+    #After trimming the reads and saving the output, the code runs Minimap2 to align the trimmed reads against each other (it is specified also because the second and the third element in the bracket are both "reads_porechop")
     m = MINIMAP % (threads, reads_porechop, reads_porechop)
     print(m)
+    #The minimap variable is a subprocess created using subprocess.Popen() method to execute the command specified by MINIMAP.
+    #the output is stored in the SAM file called "sam" created before
     minimap = sb.Popen(m, shell=True, cwd=cwd, stdout=sam, stderr=sb.PIPE)
     minimap.communicate()
     print("RUNNING RACON")
+    #The code then runs Racon to polish the read alignments generated by Minimap2 (in this case we don't use a reference sequence (like a genome) to polish the reads but we align the reads against each other; in this case it's used like a read error-correction tool) 
+    ##Racon do it, based on the majority vote of the aligned long reads
     r = RACON % (threads, reads_porechop, sam.name, reads_porechop)
     print(r)
+    #The racon_cmd variable is a subprocess created using subprocess.Popen() method to execute the command specified by RACON
+    ##The polished reads are saved in a Temporary file named reads, that with create before, which is in FASTA format.
     racon_cmd = sb.Popen(r, shell=True, cwd=cwd, stdout=reads, stderr=sb.PIPE)
     racon_cmd.communicate()
+    ###The code then runs Minimap2 and Racon again to further polish the reads, and saves the polished reads in a file named output.
     sam = tempfile.NamedTemporaryFile(suffix=".sam")
     print("RUNNING MINIMAP")
     m = MINIMAP % (threads, reads.name, reads.name)
@@ -475,98 +511,161 @@ def racon(od, fastq, threads, fast5, cwd):
     print("RUNNING RACON")
     r = RACON % (threads, reads.name, sam.name, reads.name)
     print(r)
+    ##here it create the output file of rancon called "output" in a fasta format
     output = tempfile.NamedTemporaryFile(suffix=".fasta", delete=False)
+    #here it create the output file of jellifish called "jfc_out" in a fasta format
     jfc_out = tempfile.NamedTemporaryFile(suffix=".fasta", delete=False)
     racon_cmd = sb.Popen(r, shell=True, cwd=cwd, stdout=output, stderr=sb.PIPE)
     racon_cmd.communicate()
     print("RUNNING JELLYFISH")
+    ##The code then runs Jellyfish to count the k-mers in the polished reads
+    ##K-mers are substrings of length k that are extracted from sequencing reads
+    ##It's used for estimating genome size, assessing sequencing quality, or identifying repeat regions in a genome.
+    ##It outputs its k-mer counts in a binary format (hash table), which can be translated into a human-readable text format using the "jellyfish dump" command
     jfc = JELLYFISH_COUNT % output.name
     jfd = JELLYFISH_DUMP % jfc_out.name
     print(jfc)
     print(jfd)
+    #jellyfishc takes the output of JELLYFISH_COUNT and pipes it to jellyfishd, which converts the binary output to text. 
     jellyfishc = sb.Popen(jfc, shell=True, cwd=cwd, stdout=sb.PIPE)
     jellyfishd = sb.Popen(jfd, shell=True, cwd=cwd, stdin=jellyfishc.stdout)
     jellyfishd.communicate()
     count = 0
-    kmer = "/tmp/" + uuid.uuid4().hex + ".fasta"
+    ##Finally, the code creates a temporary file named kmer with a random file name in the /tmp/ directory to save the k-mers.
+    kmer = "/tmp/" + uuid.uuid4().hex + ".fasta" #change /tmp/ with /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/RACON
+    #it opens this file in write mode, 
     with open(kmer, "w") as fh:
+        #and iterates over the sequences in the jfc_out.name file (output of Jellyfish), selecting only those sequences that have an ID greater than 10 and a length of 100 nucleotides.
         for record in SeqIO.parse(jfc_out.name, "fasta"):
             if int(record.id) > 10 and len(record.seq) == 100:
                 repetitive = 0
+                #For each selected sequence, the code writes 10 copies of the sequence to the kmer file with a new ID starting with "kmer_1", "kmer_2", and so on.
                 while 10 >= repetitive:
                     repetitive += 1
                     count += 1
                     record.id = "kmer_" + str(count)
                     SeqIO.write(record, fh, "fasta")
-    print(kmer)
-    tmp_dir = tempfile.mkdtemp(dir="/tmp")
+    print(kmer) #--> /tmp/c8319f6386ba418fb88e7e79668053b9.fasta
+    #After generating the k-mer file, it creates a temporary directory in "/tmp" using tempfile.mkdtemp()
+    tmp_dir = tempfile.mkdtemp(dir="/tmp/") #change /tmp/ with /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/RACON
+    print(tmp_dir) #valeria per controllo --> output: /tmp/tmpserqoo89 è una cartella
     print("RUNNING SPADES")
+    #and runs the SPADES genome assembler using the k-mer file and the temporary directory as input. 
+    #SPADES = "spades -s %s -o %s --only-assembler"
+    #he main function of the SPAdes package is to take short reads generated by next-generation sequencing technologies and assemble them into longer contiguous sequences, called contigs.
+    #the output it's stored in the tmp_dir
     spa = SPADES % (kmer, tmp_dir)
-    print(spa)
+    print(spa) #--> output spades -s /tmp/c8319f6386ba418fb88e7e79668053b9.fasta -o /tmp/tmpserqoo89 --only-assembler
     try:
+        # the sb.Popen() method is used to run SPADES. The stderr and stdout are redirected to sb.PIPE so that they can be captured and printed later.
         spade = sb.Popen(spa, shell=True, cwd=cwd, stderr=sb.PIPE, stdout=sb.PIPE)
         spade.communicate()
+        #The assembled contigs file is created by joining the temporary directory and the file name "contigs.fasta" using the os.path.join() method.
         assembled_contigs = os.path.join(tmp_dir, "contigs.fasta")
+        #A temporary BAM file is created using the tempfile.NamedTemporaryFile() method.
         bam = tempfile.NamedTemporaryFile(suffix=".bam", delete=False)
         print("RUNNING MINIMAP")
+        #MINIMAP is then run using the MINIMAP_S command with the threads, assembled_contigs, and read_mapping files as input. --> ALIGNMENT NANOPORE READS AGAINST A REFERENCE GENOME (the contigs generated with spade)
+        #MINIMAP_S = "minimap2 -a -x map-ont --secondary=no -t %s %s %s " --> 
+        ##--> here it is mapping the reads to the assembled contigs (generated with spade) using MINIMAP
         m = MINIMAP_S % (threads, assembled_contigs, read_mapping)
+        ##SAMSORT = "samtools sort -o %s -O BAM" --> the output is stored in the bam file
+        ##Samtools sort is a software tool used for sorting sequencing reads in a SAM or BAM file by their alignment position on a reference genome
         ss = SAMSORT % bam.name
         print(m)
+        #The output of MINIMAP is piped into SAMTOOLS_SORT and SAMTOOLS_INDEX using the sb.Popen() method
         minimap = sb.Popen(m, shell=True, cwd=cwd, stdout=sb.PIPE, stderr=sb.PIPE)
+        #samtools is a tool used for sorting (ordinare) sequencing reads in a SAM or BAM file by their alignment position on a reference genome
+        ##the input file is the output of the minimap
         samtools_sort = sb.Popen(ss, shell=True, cwd=cwd, stdin=minimap.stdout, stdout=sb.PIPE, stderr=sb.PIPE)
         samtools_sort.communicate()
+        # SAMINDEX: create the index used by samtools
         si = SAMINDEX % bam.name
         samtoos_index = sb.Popen(si, shell=True, cwd=cwd, stdout=sb.PIPE, stderr=sb.PIPE)
         samtoos_index.communicate()
+        #The "nanopolish index -d" command is used to create an index for a directory of raw nanopore sequencing data files in the fast5 format.  --> This option specifies that the input is a directory of raw nanopore sequencing data files.
         ni = NANOPOLISHI % (os.path.join(fast5,fastq), reads_porechop)
         print(ni)
         nanopolish_index = sb.Popen(ni, shell=True, cwd=cwd, stdout=sb.PIPE, stderr=sb.PIPE)
         nanopolish_index.communicate()
         regions = []
         print("RUNNING NANOPOLISH")
+        #Here, nanopolish is being run to call variants (SNPs and small indels) in the assembly.
         dict_vcf_fasta = []
+        #The code iterates over the contigs assembled (with spade) starting from the reads and constructs a "region" string that specifies the contig ID and its length. 
         for record in SeqIO.parse(assembled_contigs, "fasta"):
             region = record.id + ":0-" + str(len(record.seq))
             vcf = tempfile.NamedTemporaryFile(prefix="polished.", suffix=".vcf", delete=False)
+            ####Nanopolish is specifically designed to analyze the raw signal data produced by nanopore sequencers to perform: Basecalling; Variant calling: Nanopolish can detect single nucleotide variants (SNVs), insertion-deletion variants (indels), and structural variants (SVs) in DNA or RNA sequencing data by comparing the raw signal data to a reference genome or draft assembly...
+            ##"--consensus": This option tells Nanopolish to generate a consensus sequence from the input reads and the detected variants. see above for all the variable specified!
+            ### nanopolish is then used to call variants in the specified region using the aligned reads from the BAM file.
+            #NANOPOLISHV = "nanopolish variants --consensus -o %s -w %s -r %s -b %s -g %s -t %s --min-candidate-frequency 0.1 -p 1 " \"--fix-homopolymers" --> -w" This option sets the size of the window used to call variants. "-r": This option specifies the format of the file where there are the input reads. "-b <alignments.bam>": This option specifies the input alignments in BAM format. "-g": This option specifies the format of the file where the reference genome is stored
             nv = NANOPOLISHV % (vcf.name, region, read_mapping, bam.name, assembled_contigs, threads)
             print(nv)
             nanopolish_var = sb.Popen(nv, shell=True, cwd=cwd, stdout=sb.PIPE, stderr=sb.PIPE)
             nanopolish_var.communicate()
+            #The resulting VCF file is written to a temporary file "vcf.name", and the filename is added to a list if it exists and is non-empty.
             if os.path.isfile(vcf.name) and os.path.getsize(vcf.name) > 0:
                 regions.append(vcf.name)
             else:
+                #If the VCF file is empty, the contig is added to a list called dict_vcf_fasta
                 dict_vcf_fasta.append(record)
+        #Finally, nanopolish is called again to perform a consensus polish on the assembled contigs, using the VCF files for each contig as input.
+        ##The "nanopolish vcf2fasta -g" command is used to generate a consensus sequence from a VCF file containing variants called by Nanopolish.
+        #" ".join(regions): a string containing the paths to the VCF files for each contig joined by a space.
         nva = NANOPOLISHVA % (assembled_contigs, " ".join(regions))
         print(nva)
+        ##the code here creates a path to the output file for the MLST analysis
         mlst_done = os.path.join(od, fastq + ".MLST.done.fasta")
+        #Defines the path to the MLST file
         mlst = os.path.join(assembled_contigs + ".MLST.fasta")
+        print (mlst) #VALERIA PER CONTROLLO ---> FILE VUOTO
+        #Opens the MLST file for writing
         with open(mlst, "w") as fh:
+            #executes a command to perform consensus polishing on the assembled contigs using the VCF files generated by Nanopolish.
+            #The resulting consensus sequence is written to the MLST file (fh)
             nanopolish_vcf = sb.Popen(nva, shell=True, cwd=cwd, stdout=fh, stderr=sb.PIPE)
         nanopolish_vcf.communicate()
+        #Creates a temporary file with a ".bam" extension to store the BAM file generated by BWA-MEM alignment
         bam = tempfile.NamedTemporaryFile(suffix=".bam", delete=False)
+        ##BWAI = "bwa index %s" --> create the index for bwa
+        ##Executes a command to build an index of the MLST file for use in the BWA-MEM alignment
         bi = BWAI % mlst
-        bwa_index = sb.Popen(bi, shell=True, cwd="/tmp")
+        bwa_index = sb.Popen(bi, shell=True, cwd="/tmp") #change /tmp with /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/RACON
         bwa_index.communicate()
+        ##Executes a command to perform the BWA-MEM alignment of the reads to the MLST file and pipes the output to a SAM file: BELOW "stdin=bwa_mem.stdout" in samtools_sort command
         bm = BWA % (threads, mlst, output.name)
-        #shutil.copyfile(mlst, mlst_done) #os.path.join(cwd,output + ".fasta"))
+        #shutil.copyfile(mlst, mlst_done) #os.path.join(cwd,output + ".fasta")) ((LUIGI))
+        ####Executes a command to sort the SAM file and output the result to the BAM file
         ss = SAMSORT % bam.name
         print(bm)
-        bwa_mem = sb.Popen(bm, shell=True, cwd="/tmp", stdout=sb.PIPE, stderr=sb.PIPE)
+        bwa_mem = sb.Popen(bm, shell=True, cwd="/tmp", stdout=sb.PIPE, stderr=sb.PIPE) #change /tmp with /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/RACON
         samtools_sort = sb.Popen(ss, shell=True, cwd=cwd, stdin=bwa_mem.stdout, stdout=sb.PIPE, stderr=sb.PIPE)
         samtools_sort.communicate()
+        #here the sorted BAM file is indexed using SAMtools
         si = SAMINDEX % bam.name
         samtoos_index = sb.Popen(si, shell=True, cwd=cwd, stdout=sb.PIPE, stderr=sb.PIPE)
         samtoos_index.communicate()
+        # Creates a temporary file to store the VCF output
         vcf = tempfile.NamedTemporaryFile(suffix=".vcf", delete=False)
+        ##then code uses BCFtools mpileup to generate a binary VCF file using the indexed BAM file and the MLST reference sequence (consensus).
+        ##The "BCFTOOLS_MP: bcftools mpileup -Ou -f s%" command is used to generate a pileup of mapped reads against a reference genome, which can be used for variant calling using BCFtools (?)
+        ####---> Pileup format is a text-based format for summarizing the base calls of aligned reads to a reference sequence. This format facilitates visual display of SNP/indel calling and alignment. 
+        #### After the "bcftools mpileup -Ou -f" command, you should specify the path to one or more input BAM files containing the mapped reads.
         bcfm = BCFTOOLS_MP % (mlst, bam.name) #FREEBAYES
+        #the code onverts the binary VCF file to a text file using BCFtools_call and writes it to the temporary file created earlier.
+        ##The "bcftools call -mv -o --ploidy 1" command is used to perform variant calling and output the results in VCF format
+        #vcf.name specifies the path and name of the output VCF file.
         bcfc = BCFTOOLS_CALL % vcf.name
         print(bcfm)
         print(bcfc)
         bcftools_mpile = sb.Popen(bcfm, shell=True, cwd=cwd, stdout=sb.PIPE, stderr=sb.PIPE)
         bcftools_call = sb.Popen(bcfc, shell=True, cwd=cwd, stdin=bcftools_mpile.stdout)
         bcftools_call.communicate()
+        ##BCFTOOLS_IN = "bcftools index %s" --> it indexes the resulting VCF file using BCFtools index.
         bcfi = BCFTOOLS_IN % vcf.name
-
+        ##BGZIP  is used to compress large genomic data files such as variant call format (VCF) files, BAM files, and FASTQ files
+        ##The bgzip tool is typically used in conjunction with tabix, a tool for indexing Bgzip-compressed files, to efficiently query and retrieve subsets of data from large genomic data files.
         #BGZIP = "bgzip %s"
         #TABIX = "tabix -p vcf %s"
         bgzip = BGZIP % (vcf.name)
@@ -581,14 +680,22 @@ def racon(od, fastq, threads, fast5, cwd):
         print(bcfi)
         bcftools_index = sb.Popen(bcfi, shell=True, cwd=cwd, stdout=sb.PIPE, stderr=sb.PIPE)
         bcftools_index.communicate()
+        ##The "bcftools consensus" command is used to generate a consensus sequence in FASTA format based on a given reference genome and a set of variants from a VCF file.
+        ##"-f": This specifies the path and name of the reference genome in FASTA format.
+        ##"-o": This specifies the path and name of the output consensus sequence in FASTA format.
+        #BCFTOOLS_CO = "bcftools consensus -f %s -o %s %s"
+        ##--> the output it is written in the mlst_done file created before
         bcfco = BCFTOOLS_CO % (mlst, mlst_done, vcf_gz)
         print(bcfco)
         #print(mlst_done)
         bcftools_call = sb.Popen(bcfco, shell=True, cwd=cwd, stdout=sb.PIPE, stderr=sb.PIPE)
         bcftools_call.communicate()
+        print("THIS IS MLST_DONE" + mlst_done) #valeria per controllo
         return(mlst_done, "A")
     except:
+        print
         return(output.name, "B")
+        print("THIS IS output" + output)
 
 
 def analysis():
@@ -773,18 +880,24 @@ def analysis():
             print("EXECUTING BARCODE: %s" % barcode)
             fastx_all = [] 
             fastx_all_assembled = []
-            ##IF I DECIDE TO MAKE THE ASSEMBLE
+            ##IF I DECIDE TO MAKE THE ASSEMBLE OR TO USE THE ASSEMBLED READS
             if args.assemble or args.use_assembled:
                 if args.folder_fast5 == "":
                     print("ASSEMBLY NOT DONE, PLEASE ADD FAST5 PARAMETER - RUNNING ALIGNMENT")
                     if args.use_assembled:
                         sys.exit("FAST5 NOT PASSED WHILE ASKED FOR ASSEMBLED READS FOR ALIGNEMENT")
                 else:
+                    ##If "folder_fast5" is not empty, it calls a function called "racon" with some parameters (od, barcode, args.threads, args.folder_fast5, cwd) and stores the result in "barcode_corr" and "spade_t".
                     barcode_corr, spade_t = racon(od, barcode, args.threads, args.folder_fast5, cwd)
+                    #It then reads the "barcode_corr" (output of racon) file using Biopython's SeqIO module and for each record in the file, 
                     for record in SeqIO.parse(barcode_corr, "fasta"):
-                        fp = tempfile.NamedTemporaryFile(dir="/tmp", suffix=".fasta", mode="w", delete=False)
-                        fo = tempfile.NamedTemporaryFile(dir="/tmp", mode="w", prefix=barcode, suffix=".blastn", delete=False) ##there is a blastn file for each reads of a barcode
+                        #it creates a temporary file using Python's "tempfile" module with a ".fasta" extension 
+                        fp = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo_assemble", suffix=".fasta", mode="w", delete=False) ##I've change the directory from /tmp/ to /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo_assemble
+                        fo = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo_assemble", mode="w", prefix=barcode, suffix=".blastn", delete=False) ##I've change the directory from /tmp/ to /Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo_assemble
+                        #and writes the record to it (the temporary fp file) in "fasta" format.
                         SeqIO.write(record, fp, "fasta")
+                        #Finally, it appends a list of three items to "fastx_all_assembled" containing the paths of the two temporary files and the name of the "database_name".
+                        ##this is useful only if you put also "use_assembled". In that case, this list become the fastx_all list used after. Otherwise, it is not used
                         fastx_all_assembled.append([fp.name, database_name, fo.name])
                         # else:
                         #     print(barcode + " BARCODE NOT DONE WITH CONSENSUS SEQUENCES")
@@ -801,55 +914,86 @@ def analysis():
                 ##porechop is used for adapter trimming and demultiplexing of Oxford Nanopore Technologies (ONT) sequencing data
                 print("RUNNING PORECHOP")
                 reads_porechop = tempfile.NamedTemporaryFile(suffix=".fastq", delete=False) ###this should be the file output name of porechop with the path to this file: "/var/folders/c2.../T/" (because then, in PORECHOP % the third element is this)
-                print(reads_porechop)
-
                 porechop_cmd = PORECHOP % (barcode, args.threads, reads_porechop.name)
-                print(porechop_cmd)
-                #print ("reads_porechop.name:" + reads_porechop.name)  #VALERIA PER CONTROLLO
+                #print(porechop_cmd)
+                print ("reads_porechop.name:" + reads_porechop.name)  #VALERIA PER CONTROLLO
                 print("porechop command: " + porechop_cmd) #DANI PER CONTROLLO (?) ##this is the folder where it is stored /var/folders/c2/gghtq5tn77z8g_cgbf14n7nr0000gn/T/
                 porechop = sb.Popen(porechop_cmd, shell=True, cwd=cwd, stderr=sb.PIPE, stdout=sb.PIPE) ###cwd= args.folder_fastq (la cartella dove c'è il documento fastq da analizzare i miei fastq pass)
                 porechop.communicate()
-                ##IF I DECIDE TO CORRECT THE READS
+            ##IF I DECIDE TO CORRECT THE READS
+                ###The correction process involves using a program called "minimap" to align the reads against a reference genome, and then using "racon" to generate a consensus sequence by correcting the reads based on the reference.
+                ###The resulting corrected reads are then used to generate a set of fasta files.
+                ###If the corrected reads are empty, the original reads are used instead. 
+                ###The script also creates temporary files to store intermediate results and writes the final fasta files to a list called "fastx_all". If the barcode does not end with "raw", it is appended with "raw".
                 if args.correct:
+                    print("START CORRECTING PROCESS")
+                    #Two temporary files are created, sam and reads, with suffixes .sam and .fasta, respectively. 
+                    #These files will be used to store the SAM alignment output from minimap and the corrected reads output from racon, respectively.
                     sam = tempfile.NamedTemporaryFile(suffix=".sam", delete=False)
                     reads = tempfile.NamedTemporaryFile(suffix=".fasta", delete=False)
                     print("RUNNING MINIMAP")
-                    m = MINIMAP % (args.threads, reads_porechop.name, reads_porechop.name)
+                    #minimap2 performe an allignment of the reads demultiplexed and trimmered to each other
+                    m = MINIMAP % (args.threads, reads_porechop.name, reads_porechop.name) #---> reads_porechop contiene qualcosa, ALLORA PERCHè MINIMAP è VUOTO?
                     print(m)
+                    ##The minimap output is redirected to the sam temporary file.
                     minimap = sb.Popen(m, shell=True, cwd=cwd, stdout=sam, stderr=sb.PIPE)
                     minimap.communicate()
                     print("RUNNING RACON")
+                    ##RACON = "racon -t %s -f %s %s %s"
+                    ####"-f" specifies the input file path for the FASTQ or FASTA format reads to be used for polishing the assembly. This option tells Racon which long read sequencing data to use to correct errors in the initial draft assembly.
+                    ## the sam.name and reads_porechop.name variables, which specify the name of the temporary file containing the SAM output from minimap and the input file containing the original reads, respectively.
                     r = RACON % (args.threads, reads_porechop.name, sam.name, reads_porechop.name)
+                    print(sam.name) #valeria PER CONTROLLO output: /var/folders/c2/gghtq5tn77z8g_cgbf14n7nr0000gn/T/tmpjyda4hyx.sam 
                     print(r)
+                    #The racon output is redirected to the reads temporary file.
                     racon_cmd = sb.Popen(r, shell=True, cwd=cwd, stdout=reads, stderr=sb.PIPE)
                     racon_cmd.communicate()
+                    print(racon_cmd) #VALERIA PER CONTROLLO
+                    print(reads.name) #VALERIA PER CONTROLLO
+                    #This line checks if the reads file is not empty. The code performes two times the correction of the reads
                     if int(os.path.getsize(reads.name)) > 0:
+                        #create a temporary file with the suffix ".sam" and assigns it to the variable sam
                         sam = tempfile.NamedTemporaryFile(suffix=".sam")
                         print("RUNNING MINIMAP")
+                        ##minimap performe an allignment of the corrected reads output from racon to each other
                         m = MINIMAP % (args.threads, reads.name, reads.name)
+                        ## The output is redirected to the sam file
                         minimap = sb.Popen(m, shell=True, cwd=cwd, stdout=sam, stderr=sb.PIPE)
                         minimap.communicate()
                         print("RUNNING RACON")
+                        #the sam.name and reads_porechop.name variables, which specify the name of the temporary file containing the new SAM output from minimap and the input file containing the reads corrected in the first step like the original reads, respectively.
                         r = RACON % (args.threads, reads.name, sam.name, reads.name)
                         output = tempfile.NamedTemporaryFile(suffix=".fasta", delete=False)
+                        #the output file is called "output"
                         racon_cmd = sb.Popen(r, shell=True, cwd=cwd, stdout=output, stderr=sb.PIPE)
                         racon_cmd.communicate()
+                        #This initializes a counter variable count to 0.
                         count = 0
+                        ##This loops over each record in the output file, which contains the corrected reads in FASTA format.
                         for record in SeqIO.parse(output.name, "fasta"):
+                            #count += 1: This increments the count variable by 1.
                             count += 1
-                            fp = tempfile.NamedTemporaryFile(dir="/tmp", suffix=".fasta", mode="w", delete=False)
-                            fo = tempfile.NamedTemporaryFile(dir="/tmp", mode="w", prefix=barcode, suffix=".blastn", delete=False)
+                            #fp = This creates a temporary file with the suffix ".fasta" in the "/tmp" directory and assigns it to the variable fp.
+                            fp = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo", suffix=".fasta", mode="w", delete=False) ###here i changed the directory from "/tmp" to "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo"
+                            #fo = This creates a temporary file with the prefix barcode and the suffix ".blastn" in the "/tmp" directory and assigns it to the variable fo.
+                            fo = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo", mode="w", prefix=barcode, suffix=".blastn", delete=False)  ###here i changed the directory from "/tmp" to "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo"
+                            #This writes the current record to the fp file in FASTA format.
                             SeqIO.write(record, fp, "fasta")
+                            #This appends a list containing the names of the fp file, the database_name variable, and the fo file to the fastx_all list. (the input file, the database the we search in NCBI and the output files)
                             fastx_all.append([fp.name, database_name,fo.name])
+                    #if the reads file is empty
                     else:
+                        print("THE CORRECT FILE IS EMPTY") ##valeria PER CONTROLLO
                         count = 0
                         print(reads_porechop.name)
+                        #or each record, it creates two temporary files using tempfile.NamedTemporaryFile: fp with a suffix of .fasta and fo with a prefix of barcode and a suffix of .blastn. 
                         for record in SeqIO.parse(reads_porechop.name, "fastq"):
                             count += 1
-                            fp = tempfile.NamedTemporaryFile(dir="/tmp", suffix=".fasta", mode="w", delete=False)
-                            fo = tempfile.NamedTemporaryFile(dir="/tmp", mode="w", prefix=barcode, suffix=".blastn", delete=False)
+                            fp = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo", suffix=".fasta", mode="w", delete=False)  ###here i changed the directory from "/tmp" to "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo"
+                            fo = tempfile.NamedTemporaryFile(dir="/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo", mode="w", prefix=barcode, suffix=".blastn", delete=False)  ###here i changed the directory from "/tmp" to "/Users/it031376/Desktop/Sequentia_python/SCRIPT_LUIGI/fp_fo"
                             SeqIO.write(record, fp, "fasta")
                             fastx_all.append([fp.name, database_name, fo.name])
+                            ##If barcode does not end with "raw", it appends "raw" to it
                             if not barcode.endswith("raw"):
                                 barcode = barcode + "raw"
                 ##IF I DON'T DECIDE TO CORRECT THE READS
