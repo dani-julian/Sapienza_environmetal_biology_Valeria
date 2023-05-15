@@ -11,7 +11,21 @@ pipeline for Nanopore data analysis
 
 ## Installation
 
-A step-by-step guide on how to install and run the project on a local machine.
+A step-by-step guide on how to install and run the project on a local machine.  
+Software that must be installed to use the script:  
+- Bio (Version: 1.5.9)
+- KronaTools (Version: 2.8.1)
+- minimap2 (Version: 2.26-r1175)
+- samtools (Version: 1.17)
+- racon (Version: 1.5.0)
+- porechop (Version: 0.2.4)
+- jellyfish (Version: 2.3.0)
+- SPAdes genome assembler (Version: 3.15.5)
+- nanopolish (Version: 0.14.0)
+- bwa (Version: 0.7.17-r1188)
+- bcftools (Version: 1.17)
+- bgzip (Version: 1.17)
+- tabix (Version: 1.17)
 
 ## Usage
 
