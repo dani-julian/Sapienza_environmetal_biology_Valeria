@@ -21,6 +21,7 @@ Python package that must be installed to use the script:
 - pandas (Version: 2.0.1)
 - csv (Version: 1.0)
 - ete3 (Version: 3.1.2)  
+
 Software that must be installed to use the script:  
 - Bio (Version: 1.5.9)
 - KronaTools (Version: 2.8.1)
