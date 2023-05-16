@@ -11,7 +11,7 @@ pipeline for Nanopore data analysis
 
 ## Installation
 
-A step-by-step guide on how to install and run the project on a local machine. 
+A step-by-step guide on how to install and run the project on a local machine.  
 Python package that must be installed to use the script:
 - matplotlib (Version: 3.7.1)
 - re (Version: 2.2.1)
