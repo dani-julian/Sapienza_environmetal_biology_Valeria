@@ -11,7 +11,16 @@ pipeline for Nanopore data analysis
 
 ## Installation
 
-A step-by-step guide on how to install and run the project on a local machine.  
+A step-by-step guide on how to install and run the project on a local machine.
+Python package that must be installed to use the script:
+- matplotlib (Version: 3.7.1)
+- re (Version: 2.2.1)
+- Bio (Version: 1.81)
+- tqdm (Version: 4.65.0)
+- argparse (Version: 1.1)
+- pandas (Version: 2.0.1)
+- csv (Version: 1.0)
+- ete3 (Version: 3.1.2)  
 Software that must be installed to use the script:  
 - Bio (Version: 1.5.9)
 - KronaTools (Version: 2.8.1)
