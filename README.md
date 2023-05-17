@@ -23,7 +23,6 @@ Python package that must be installed to use the script:
 - ete3 (Version: 3.1.2)  
 
 Software that must be installed to use the script:  
-- Bio (Version: 1.5.9)
 - KronaTools (Version: 2.8.1)
 - minimap2 (Version: 2.26-r1175)
 - samtools (Version: 1.17)
