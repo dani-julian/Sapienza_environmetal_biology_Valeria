@@ -22,7 +22,7 @@ Python package that must be installed to use the script:
 - ete3 (Version: 3.1.2)  
 
 Software that must be installed to use the script:  
-- KronaTools (Version: 2.8.1)
+- ktImportTaxonomy (Version: 2.8.1)
 - minimap2 (Version: 2.26-r1175)
 - samtools (Version: 1.17)
 - racon (Version: 1.5.0)
